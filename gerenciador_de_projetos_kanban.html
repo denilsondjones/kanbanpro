@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciador de Projetos - Kanban Pro</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0284c7',
+              700: '#0369a1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.7);
+    }
+    .ghost-card {
+      opacity: 0.4;
+      border: 2px dashed #0284c7 !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-200 min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+
+  <!-- Sidebar Overlay for Mobile -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden"></div>
+
+  <!-- Sidebar Component -->
+  <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-30 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out shrink-0">
+    <!-- App Logo & Title -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-sky-500 text-white rounded-xl shadow-md">
+          <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg tracking-wide">KanbanPro</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Gestão Visual de Projetos</p>
+        </div>
+      </div>
+      <button id="close-sidebar-btn" class="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Projects List Header & Add Button -->
+    <div class="p-4 flex items-center justify-between">
+      <span class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Meus Projetos</span>
+      <button onclick="openProjectModal()" class="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-gray-700 rounded-lg flex items-center text-sm font-medium transition-colors" title="Criar Novo Projeto">
+        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+        Novo
+      </button>
+    </div>
+
+    <!-- Projects List Container -->
+    <nav id="projects-list" class="flex-1 overflow-y-auto px-3 space-y-1">
+      <!-- Projects dynamically populated here -->
+    </nav>
+
+    <!-- Footer Controls (Dark Mode Toggle) -->
+    <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <span class="text-sm font-medium">Tema</span>
+      <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center space-x-2">
+        <i id="theme-icon" data-lucide="moon" class="w-4 h-4"></i>
+        <span id="theme-text" class="text-xs font-medium">Escuro</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Application Body -->
+  <main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <!-- Top Header Navigation -->
+    <header class="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 flex items-center justify-between shrink-0">
+      <div class="flex items-center space-x-3">
+        <button id="open-sidebar-btn" class="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+          <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+        <div>
+          <h2 id="current-project-title" class="text-xl font-bold tracking-tight">Carregando...</h2>
+          <p id="current-project-desc" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-md"></p>
+        </div>
+      </div>
+
+      <!-- Actions Bar -->
+      <div class="flex items-center space-x-2">
+        <button onclick="openEditProjectModal()" id="btn-edit-project" class="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Editar / Renomear Projeto">
+          <i data-lucide="pencil" class="w-4 h-4"></i>
+        </button>
+        <button onclick="deleteCurrentProject()" id="btn-delete-project" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Excluir Projeto">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+        <div class="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+        <button onclick="openAddColumnModal()" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-sm font-medium flex items-center space-x-1 transition-colors">
+          <i data-lucide="columns" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">+ Coluna</span>
+        </button>
+        <button onclick="openCardModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium flex items-center space-x-1 shadow-sm transition-colors">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>Novo Card</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Kanban Board Scrollable Canvas -->
+    <div class="flex-1 overflow-x-auto overflow-y-hidden p-4 md:p-6 bg-gray-50 dark:bg-gray-900/50">
+      <div id="kanban-board" class="flex h-full space-x-4 items-start min-w-max pb-4">
+        <!-- Columns rendered dynamically -->
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Project Create / Edit -->
+  <div id="modal-project" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-project-title" class="text-lg font-bold">Novo Projeto</h3>
+        <button onclick="closeProjectModal()" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="form-project" onsubmit="handleProjectSubmit(event)" class="space-y-4">
+        <input type="hidden" id="project-id">
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Nome do Projeto *</label>
+          <input type="text" id="project-name" required placeholder="Ex: Lançamento do Website" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Descrição</label>
+          <textarea id="project-desc" rows="3" placeholder="Resumo dos objetivos do projeto..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 pt-2">
+          <button type="button" onclick="closeProjectModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Card Create / Edit -->
+  <div id="modal-card" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="modal-card-title" class="text-lg font-bold">Novo Card</h3>
+        <button onclick="closeCardModal()" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="form-card" onsubmit="handleCardSubmit(event)" class="space-y-4">
+        <input type="hidden" id="card-id">
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Título da Tarefa *</label>
+          <input type="text" id="card-title-input" required placeholder="Ex: Criar wireframes da Home" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Coluna</label>
+            <select id="card-column-select" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+              <!-- Options populated dynamically -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Prioridade</label>
+            <select id="card-priority-select" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+              <option value="Baixa">Baixa</option>
+              <option value="Média" selected>Média</option>
+              <option value="Alta">Alta</option>
+              <option value="Urgente">Urgente</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Data de Entrega</label>
+            <input type="date" id="card-date-input" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Tag/Categoria</label>
+            <input type="text" id="card-tag-input" placeholder="Ex: Design, Dev, Marketing" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Descrição detalhada</label>
+          <textarea id="card-desc-input" rows="3" placeholder="Adicione mais detalhes sobre esta tarefa..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none"></textarea>
+        </div>
+        <div class="flex justify-end space-x-3 pt-2">
+          <button type="button" onclick="closeCardModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Salvar Card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Column Create -->
+  <div id="modal-column" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold">Nova Coluna</h3>
+        <button onclick="closeAddColumnModal()" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="form-column" onsubmit="handleAddColumnSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Nome da Coluna *</label>
+          <input type="text" id="column-name-input" required placeholder="Ex: Em Revisão, Homologação..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus:ring-2 focus:ring-sky-500 focus:outline-none">
+        </div>
+        <div class="flex justify-end space-x-3 pt-2">
+          <button type="button" onclick="closeAddColumnModal()" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium">Criar Coluna</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // --- Application State Management ---
+    const STORAGE_KEY = 'kanban_pro_app_data_v1';
+    
+    let appState = {
+      theme: 'light',
+      activeProjectId: null,
+      projects: []
+    };
+
+    // Helper: Generate Unique IDs
+    function generateId() {
+      return 'id_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // Default Seed Data if LocalStorage is empty
+    function getSeedData() {
+      const projId = generateId();
+      return {
+        theme: 'light',
+        activeProjectId: projId,
+        projects: [
+          {
+            id: projId,
+            name: 'Website Redesign',
+            description: 'Reformulação do portal da empresa e melhorias de UX.',
+            columns: [
+              { id: 'col_1', title: 'A Fazer' },
+              { id: 'col_2', title: 'Em Andamento' },
+              { id: 'col_3', title: 'Concluído' }
+            ],
+            cards: [
+              {
+                id: generateId(),
+                columnId: 'col_1',
+                title: 'Pesquisa com Usuários',
+                description: 'Entrevistar 5 clientes principais para levantar pontos de dor.',
+                priority: 'Alta',
+                tag: 'UX',
+                dueDate: '2026-10-15'
+              },
+              {
+                id: generateId(),
+                columnId: 'col_2',
+                title: 'Protótipo Figma',
+                description: 'Criar wireframes de alta fidelidade para o checkout.',
+                priority: 'Média',
+                tag: 'Design',
+                dueDate: '2026-10-20'
+              },
+              {
+                id: generateId(),
+                columnId: 'col_3',
+                title: 'Setup do Repositório',
+                description: 'Configurar Tailwind CSS e estrutura inicial do projeto.',
+                priority: 'Baixa',
+                tag: 'Dev',
+                dueDate: '2026-09-01'
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    // Load Data from LocalStorage
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          appState = JSON.parse(raw);
+        } else {
+          appState = getSeedData();
+          saveState();
+        }
+      } catch (e) {
+        console.error("Erro ao carregar dados", e);
+        appState = getSeedData();
+      }
+    }
+
+    // Save Data to LocalStorage
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    }
+
+    // Helper to Get Active Project
+    function getActiveProject() {
+      return appState.projects.find(p => p.id === appState.activeProjectId) || appState.projects[0];
+    }
+
+    function initTheme() {
+      if (appState.theme === 'dark' || (!('theme' in appState) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        appState.theme = 'dark';
+      } else {
+        document.documentElement.classList.remove('dark');
+        appState.theme = 'light';
+      }
+      updateThemeUI();
+    }
+
+    function toggleTheme() {
+      appState.theme = appState.theme === 'dark' ? 'light' : 'dark';
+      if (appState.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      saveState();
+      updateThemeUI();
+    }
+
+    function updateThemeUI() {
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      if (appState.theme === 'dark') {
+        icon.setAttribute('data-lucide', 'sun');
+        text.textContent = 'Claro';
+      } else {
+        icon.setAttribute('data-lucide', 'moon');
+        text.textContent = 'Escuro';
+      }
+      lucide.createIcons();
+    }
+
+    function renderProjectsSidebar() {
+      const container = document.getElementById('projects-list');
+      container.innerHTML = '';
+
+      if (appState.projects.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-400 p-2 text-center">Nenhum projeto encontrado.</p>`;
+        return;
+      }
+
+      appState.projects.forEach(project => {
+        const isActive = project.id === appState.activeProjectId;
+        const btn = document.createElement('button');
+        btn.onclick = () => switchProject(project.id);
+        btn.className = `w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium flex items-center justify-between transition-all group ${
+          isActive 
+            ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 font-semibold shadow-sm' 
+            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
+        }`;
+
+        btn.innerHTML = `
+          <div class="flex items-center space-x-2.5 overflow-hidden">
+            <i data-lucide="folder" class="w-4 h-4 shrink-0 ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400'}"></i>
+            <span class="truncate">${escapeHtml(project.name)}</span>
+          </div>
+          <span class="text-xs bg-gray-200/60 dark:bg-gray-700 px-2 py-0.5 rounded-full text-gray-500 dark:text-gray-400">${project.cards.length}</span>
+        `;
+
+        container.appendChild(btn);
+      });
+      lucide.createIcons();
+    }
+
+    function switchProject(projectId) {
+      appState.activeProjectId = projectId;
+      saveState();
+      renderApp();
+      closeSidebarMobile();
+    }
+
+    function renderBoard() {
+      const project = getActiveProject();
+      const board = document.getElementById('kanban-board');
+      
+      // Header info
+      if (project) {
+        document.getElementById('current-project-title').textContent = project.name;
+        document.getElementById('current-project-desc').textContent = project.description || 'Sem descrição definida.';
+      } else {
+        document.getElementById('current-project-title').textContent = 'Selecione um projeto';
+        document.getElementById('current-project-desc').textContent = '';
+        board.innerHTML = `<div class="m-auto text-gray-400">Crie ou selecione um projeto no menu lateral.</div>`;
+        return;
+      }
+
+      board.innerHTML = '';
+
+      // Render columns
+      project.columns.forEach((column) => {
+        const colCards = project.cards.filter(c => c.columnId === column.id);
+        
+        const colEl = document.createElement('div');
+        colEl.className = 'w-80 bg-gray-200/60 dark:bg-gray-800/60 rounded-2xl flex flex-col max-h-full border border-gray-200/80 dark:border-gray-700/60 shrink-0 shadow-sm';
+        colEl.dataset.columnId = column.id;
+
+        colEl.innerHTML = `
+          <!-- Column Header -->
+          <div class="p-3.5 flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50">
+            <div class="flex items-center space-x-2">
+              <h3 class="font-bold text-sm tracking-wide">${escapeHtml(column.title)}</h3>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-300/60 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                ${colCards.length}
+              </span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button onclick="openCardModal('${column.id}')" class="p-1 hover:bg-gray-300/50 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400 transition-colors" title="Adicionar Card">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+              </button>
+              <button onclick="deleteColumn('${column.id}')" class="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors" title="Excluir Coluna">
+                <i data-lucide="trash" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Cards Drop Area -->
+          <div class="cards-container flex-1 overflow-y-auto p-2.5 space-y-2.5 min-h-[100px]" data-column-id="${column.id}">
+            <!-- Cards appended here -->
+          </div>
+        `;
+
+        const cardsContainer = colEl.querySelector('.cards-container');
+
+        // Drag and drop event listeners on Container
+        cardsContainer.addEventListener('dragover', handleDragOver);
+        cardsContainer.addEventListener('dragenter', handleDragEnter);
+        cardsContainer.addEventListener('dragleave', handleDragLeave);
+        cardsContainer.addEventListener('drop', handleDrop);
+
+        // Append Cards
+        colCards.forEach(card => {
+          const cardEl = createCardElement(card);
+          cardsContainer.appendChild(cardEl);
+        });
+
+        board.appendChild(colEl);
+      });
+
+      lucide.createIcons();
+    }
+
+    // Helper: Create HTML Element for a Single Card
+    function createCardElement(card) {
+      const el = document.createElement('div');
+      el.className = 'bg-white dark:bg-gray-800 p-3.5 rounded-xl shadow-sm border border-gray-200/70 dark:border-gray-700 hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative';
+      el.draggable = true;
+      el.dataset.cardId = card.id;
+
+      // Priority styling
+      let priorityBadge = '';
+      if (card.priority) {
+        const colors = {
+          'Baixa': 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300',
+          'Média': 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300',
+          'Alta': 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300',
+          'Urgente': 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
+        };
+        const colorClass = colors[card.priority] || 'bg-gray-100 text-gray-700';
+        priorityBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${colorClass}">${escapeHtml(card.priority)}</span>`;
+      }
+
+      let tagBadge = card.tag ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">${escapeHtml(card.tag)}</span>` : '';
+      
+      let dateBadge = '';
+      if (card.dueDate) {
+        const formattedDate = new Date(card.dueDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+        dateBadge = `
+          <div class="flex items-center text-xs text-gray-400 space-x-1">
+            <i data-lucide="calendar" class="w-3 h-3"></i>
+            <span>${formattedDate}</span>
+          </div>
+        `;
+      }
+
+      el.innerHTML = `
+        <div class="flex justify-between items-start mb-2 space-x-2">
+          <h4 class="font-semibold text-sm leading-snug line-clamp-2">${escapeHtml(card.title)}</h4>
+          <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1 bg-white dark:bg-gray-800 rounded pl-1">
+            <button onclick="openEditCardModal('${card.id}')" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-500" title="Editar">
+              <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="deleteCard('${card.id}')" class="p-1 hover:bg-red-50 dark:hover:bg-red-900/40 rounded text-red-500" title="Excluir">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        ${card.description ? `<p class="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">${escapeHtml(card.description)}</p>` : ''}
+
+        <div class="flex items-center justify-between pt-1 mt-2 border-t border-gray-100 dark:border-gray-700/50">
+          <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+            ${priorityBadge}
+            ${tagBadge}
+          </div>
+          ${dateBadge}
+        </div>
+      `;
+
+      // Drag Events on Card
+      el.addEventListener('dragstart', handleDragStart);
+      el.addEventListener('dragend', handleDragEnd);
+
+      return el;
+    }
+
+    let draggedCardId = null;
+
+    function handleDragStart(e) {
+      draggedCardId = this.dataset.cardId;
+      this.classList.add('ghost-card');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedCardId);
+    }
+
+    function handleDragEnd(e) {
+      this.classList.remove('ghost-card');
+      draggedCardId = null;
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+      e.preventDefault();
+      this.classList.add('bg-sky-50/50', 'dark:bg-sky-950/20');
+    }
+
+    function handleDragLeave(e) {
+      this.classList.remove('bg-sky-50/50', 'dark:bg-sky-950/20');
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      this.classList.remove('bg-sky-50/50', 'dark:bg-sky-950/20');
+
+      const cardId = e.dataTransfer.getData('text/plain') || draggedCardId;
+      const targetColumnId = this.dataset.columnId;
+
+      if (!cardId || !targetColumnId) return;
+
+      const project = getActiveProject();
+      const card = project.cards.find(c => c.id === cardId);
+
+      if (card && card.columnId !== targetColumnId) {
+        card.columnId = targetColumnId;
+        saveState();
+        renderBoard();
+      }
+    }
+
+
+    // --- PROJECT MODAL HANDLERS ---
+    function openProjectModal() {
+      document.getElementById('modal-project-title').textContent = 'Novo Projeto';
+      document.getElementById('project-id').value = '';
+      document.getElementById('project-name').value = '';
+      document.getElementById('project-desc').value = '';
+      document.getElementById('modal-project').classList.remove('hidden');
+    }
+
+    function openEditProjectModal() {
+      const project = getActiveProject();
+      if (!project) return;
+      document.getElementById('modal-project-title').textContent = 'Editar Projeto';
+      document.getElementById('project-id').value = project.id;
+      document.getElementById('project-name').value = project.name;
+      document.getElementById('project-desc').value = project.description || '';
+      document.getElementById('modal-project').classList.remove('hidden');
+    }
+
+    function closeProjectModal() {
+      document.getElementById('modal-project').classList.add('hidden');
+    }
+
+    function handleProjectSubmit(e) {
+      e.preventDefault();
+      const id = document.getElementById('project-id').value;
+      const name = document.getElementById('project-name').value.trim();
+      const description = document.getElementById('project-desc').value.trim();
+
+      if (!name) return;
+
+      if (id) {
+        // Edit
+        const project = appState.projects.find(p => p.id === id);
+        if (project) {
+          project.name = name;
+          project.description = description;
+        }
+      } else {
+        // Create
+        const newProjId = generateId();
+        const newProject = {
+          id: newProjId,
+          name,
+          description,
+          columns: [
+            { id: 'col_1', title: 'A Fazer' },
+            { id: 'col_2', title: 'Em Andamento' },
+            { id: 'col_3', title: 'Concluído' }
+          ],
+          cards: []
+        };
+        appState.projects.push(newProject);
+        appState.activeProjectId = newProjId;
+      }
+
+      saveState();
+      closeProjectModal();
+      renderApp();
+    }
+
+    function deleteCurrentProject() {
+      const project = getActiveProject();
+      if (!project) return;
+
+      if (confirm(`Tem certeza que deseja excluir o projeto "${project.name}"? Todas as tarefas serão perdidas.`)) {
+        appState.projects = appState.projects.filter(p => p.id !== project.id);
+        appState.activeProjectId = appState.projects.length > 0 ? appState.projects[0].id : null;
+        saveState();
+        renderApp();
+      }
+    }
+
+    // --- CARD MODAL HANDLERS ---
+    function openCardModal(defaultColId = null) {
+      const project = getActiveProject();
+      if (!project || project.columns.length === 0) {
+        alert("Crie uma coluna primeiro antes de adicionar cards!");
+        return;
+      }
+
+      document.getElementById('modal-card-title').textContent = 'Novo Card';
+      document.getElementById('card-id').value = '';
+      document.getElementById('card-title-input').value = '';
+      document.getElementById('card-desc-input').value = '';
+      document.getElementById('card-priority-select').value = 'Média';
+      document.getElementById('card-tag-input').value = '';
+      document.getElementById('card-date-input').value = '';
+
+      // Populate column options
+      const colSelect = document.getElementById('card-column-select');
+      colSelect.innerHTML = '';
+      project.columns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col.id;
+        opt.textContent = col.title;
+        if (defaultColId && col.id === defaultColId) opt.selected = true;
+        colSelect.appendChild(opt);
+      });
+
+      document.getElementById('modal-card').classList.remove('hidden');
+    }
+
+    function openEditCardModal(cardId) {
+      const project = getActiveProject();
+      const card = project.cards.find(c => c.id === cardId);
+      if (!card) return;
+
+      document.getElementById('modal-card-title').textContent = 'Editar Card';
+      document.getElementById('card-id').value = card.id;
+      document.getElementById('card-title-input').value = card.title;
+      document.getElementById('card-desc-input').value = card.description || '';
+      document.getElementById('card-priority-select').value = card.priority || 'Média';
+      document.getElementById('card-tag-input').value = card.tag || '';
+      document.getElementById('card-date-input').value = card.dueDate || '';
+
+      const colSelect = document.getElementById('card-column-select');
+      colSelect.innerHTML = '';
+      project.columns.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col.id;
+        opt.textContent = col.title;
+        if (col.id === card.columnId) opt.selected = true;
+        colSelect.appendChild(opt);
+      });
+
+      document.getElementById('modal-card').classList.remove('hidden');
+    }
+
+    function closeCardModal() {
+      document.getElementById('modal-card').classList.add('hidden');
+    }
+
+    function handleCardSubmit(e) {
+      e.preventDefault();
+      const project = getActiveProject();
+      if (!project) return;
+
+      const cardId = document.getElementById('card-id').value;
+      const title = document.getElementById('card-title-input').value.trim();
+      const columnId = document.getElementById('card-column-select').value;
+      const priority = document.getElementById('card-priority-select').value;
+      const tag = document.getElementById('card-tag-input').value.trim();
+      const dueDate = document.getElementById('card-date-input').value;
+      const description = document.getElementById('card-desc-input').value.trim();
+
+      if (!title) return;
+
+      if (cardId) {
+        // Edit Card
+        const card = project.cards.find(c => c.id === cardId);
+        if (card) {
+          card.title = title;
+          card.columnId = columnId;
+          card.priority = priority;
+          card.tag = tag;
+          card.dueDate = dueDate;
+          card.description = description;
+        }
+      } else {
+        // Create Card
+        const newCard = {
+          id: generateId(),
+          columnId,
+          title,
+          description,
+          priority,
+          tag,
+          dueDate
+        };
+        project.cards.push(newCard);
+      }
+
+      saveState();
+      closeCardModal();
+      renderBoard();
+      renderProjectsSidebar();
+    }
+
+    function deleteCard(cardId) {
+      const project = getActiveProject();
+      if (!project) return;
+
+      if (confirm('Deseja excluir esta tarefa?')) {
+        project.cards = project.cards.filter(c => c.id !== cardId);
+        saveState();
+        renderBoard();
+        renderProjectsSidebar();
+      }
+    }
+
+    // --- COLUMN HANDLERS ---
+    function openAddColumnModal() {
+      document.getElementById('column-name-input').value = '';
+      document.getElementById('modal-column').classList.remove('hidden');
+    }
+
+    function closeAddColumnModal() {
+      document.getElementById('modal-column').classList.add('hidden');
+    }
+
+    function handleAddColumnSubmit(e) {
+      e.preventDefault();
+      const project = getActiveProject();
+      if (!project) return;
+
+      const title = document.getElementById('column-name-input').value.trim();
+      if (!title) return;
+
+      project.columns.push({
+        id: 'col_' + generateId(),
+        title
+      });
+
+      saveState();
+      closeAddColumnModal();
+      renderBoard();
+    }
+
+    function deleteColumn(columnId) {
+      const project = getActiveProject();
+      if (!project) return;
+
+      const hasCards = project.cards.some(c => c.columnId === columnId);
+      if (hasCards) {
+        if (!confirm('Esta coluna contém tarefas. Excluir a coluna removerá todas as suas tarefas. Continuar?')) {
+          return;
+        }
+      }
+
+      project.columns = project.columns.filter(c => c.id !== columnId);
+      project.cards = project.cards.filter(c => c.columnId !== columnId);
+
+      saveState();
+      renderBoard();
+      renderProjectsSidebar();
+    }
+
+    // --- Utilities & Mobile Nav ---
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function toggleSidebarMobile() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      sidebar.classList.toggle('-translate-x-full');
+      overlay.classList.toggle('hidden');
+    }
+
+    function closeSidebarMobile() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      sidebar.classList.add('-translate-x-full');
+      overlay.classList.add('hidden');
+    }
+
+    function renderApp() {
+      renderProjectsSidebar();
+      renderBoard();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      initTheme();
+      renderApp();
+
+      // Bind Theme Switch
+      document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+      // Mobile Menu Binds
+      document.getElementById('open-sidebar-btn').addEventListener('click', toggleSidebarMobile);
+      document.getElementById('close-sidebar-btn').addEventListener('click', closeSidebarMobile);
+      document.getElementById('sidebar-overlay').addEventListener('click', closeSidebarMobile);
+    });
+  </script>
+</body>
+</html>
